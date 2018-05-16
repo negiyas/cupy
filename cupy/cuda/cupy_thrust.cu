@@ -5,6 +5,11 @@
 #include <thrust/sort.h>
 #include <thrust/tuple.h>
 #include <thrust/execution_policy.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cuda.h>
 #include "cupy_common.h"
 #include "cupy_thrust.h"
 
@@ -183,3 +188,45 @@ template void cupy::thrust::_argsort<cpy_long>(size_t *, void *, void *, const s
 template void cupy::thrust::_argsort<cpy_ulong>(size_t *, void *, void *, const std::vector<ptrdiff_t>& shape, size_t);
 template void cupy::thrust::_argsort<cpy_float>(size_t *, void *, void *, const std::vector<ptrdiff_t>& shape, size_t);
 template void cupy::thrust::_argsort<cpy_double>(size_t *, void *, void *, const std::vector<ptrdiff_t>& shape, size_t);
+
+void cupy::thrust::_shm_alloc(const char *name, size_t size, void **ptr) {
+  int fd;
+
+  fd  = shm_open(name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+  if (fd == -1) {
+    (*ptr) = NULL;
+    return;
+  }
+
+  if (ftruncate(fd, size) == -1) {
+    shm_unlink(name);
+    close(fd);
+    (*ptr) = NULL;
+    return;
+  }
+
+  (*ptr) = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if ((*ptr) == MAP_FAILED) {
+    shm_unlink(name);
+    close(fd);
+    (*ptr) = NULL;
+    return;
+  }
+
+  if (cudaHostRegister(*ptr, size, cudaHostRegisterMapped) != cudaSuccess) {
+    shm_unlink(name);
+    close(fd);
+    munmap(*ptr, size);
+    (*ptr) = NULL;
+    return;
+  }
+  close(fd);
+  return;
+}
+
+void cupy::thrust::_shm_free(const char *name, void *ptr, size_t size) {
+  cudaHostUnregister(ptr);
+  shm_unlink(name);
+  munmap(ptr, size);
+  return;
+}

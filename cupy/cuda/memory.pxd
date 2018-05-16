@@ -38,6 +38,14 @@ cpdef MemoryPointer alloc(Py_ssize_t size)
 cpdef set_allocator(allocator=*)
 
 
+cdef class Workspace:
+
+    cdef:
+        readonly object mem
+        readonly size_t ptr
+        readonly Py_ssize_t size
+
+
 cdef class SingleDeviceMemoryPool:
 
     cdef:
@@ -51,6 +59,7 @@ cdef class SingleDeviceMemoryPool:
         readonly Py_ssize_t _allocation_unit_size
         readonly int _device_id
         map.map[size_t, vector.vector[int]] _index
+        object _workspace
 
     cpdef MemoryPointer _alloc(self, Py_ssize_t size)
     cpdef MemoryPointer malloc(self, Py_ssize_t size)
@@ -69,6 +78,9 @@ cdef class SingleDeviceMemoryPool:
     cpdef _append_to_free_list(self, Py_ssize_t size, chunk, size_t stream_ptr)
     cpdef bint _remove_from_free_list(self, Py_ssize_t size,
                                       chunk, size_t stream_ptr) except *
+    cpdef workspace(self)
+    cpdef malloc_workspace(self, Py_ssize_t size)
+    cpdef free_workspace(self)
 
 cdef class MemoryPool:
 
@@ -82,3 +94,5 @@ cdef class MemoryPool:
     cpdef used_bytes(self)
     cpdef free_bytes(self)
     cpdef total_bytes(self)
+
+    cpdef pool(self, dev)

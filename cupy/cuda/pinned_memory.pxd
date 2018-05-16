@@ -1,3 +1,15 @@
+from cupy.cuda cimport memory
+
+cdef class PinnedMemory:
+
+    cdef:
+        public size_t ptr
+        public Py_ssize_t size
+
+cdef class SharedPinnedMemory(PinnedMemory):
+
+    cdef:
+        object name
 
 cdef class PinnedMemoryPointer:
 
@@ -9,6 +21,12 @@ cdef class PinnedMemoryPointer:
 
     cpdef Py_ssize_t size(self)
 
+    cpdef copy_from_device(self, memory.MemoryPointer src, Py_ssize_t size)
+    cpdef copy_from_device_async(self, memory.MemoryPointer src,
+                                 Py_ssize_t size, stream)
+    cpdef copy_to_device(self, memory.MemoryPointer dst, Py_ssize_t size)
+    cpdef copy_to_device_async(self, memory.MemoryPointer dst,
+                               Py_ssize_t size, stream)
 
 cpdef _add_to_watch_list(event, obj)
 

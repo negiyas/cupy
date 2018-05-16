@@ -253,6 +253,23 @@ cpdef poolingBackward(
     size_t destDiffData)
 
 ###############################################################################
+# Local Response Normalization
+###############################################################################
+
+cpdef size_t createLRNDescriptor() except *
+cpdef setLRNDescriptor(
+    size_t normDesc, unsigned lrnN, double lrnAlpha,
+    double lrnBeta, double lrnK)
+cpdef destroyLRNDescriptor(size_t normDesc)
+cpdef LRNCrossChannelForward(
+    size_t handle, size_t normDesc, size_t mode, size_t alpha, size_t xDesc,
+    size_t x, size_t beta, size_t yDesc, size_t y)
+cpdef LRNCrossChannelBackward(
+    size_t handle, size_t normDesc, size_t mode, size_t alpha, size_t yDesc,
+    size_t y, size_t dyDesc, size_t dy, size_t xDesc, size_t x,
+    size_t beta, size_t dxDesc, size_t dx)
+
+###############################################################################
 # Batch Normalization
 ###############################################################################
 

@@ -13,6 +13,10 @@ template <typename T> void _lexsort(size_t *, void *, size_t, size_t, size_t str
 
 template <typename T> void _argsort(size_t *, void *, void *, const std::vector<ptrdiff_t>&, size_t stream=0);
 
+void _shm_alloc(const char *, size_t, void **);
+
+void _shm_free(const char *, void *, size_t);
+
 } // namespace thrust
 
 } // namespace cupy

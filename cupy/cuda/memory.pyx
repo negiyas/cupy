@@ -485,6 +485,14 @@ cpdef set_allocator(allocator=None):
     _current_allocator = allocator
 
 
+cdef class Workspace:
+    def __init__(self, mem):
+        #print('memory.pyx:Workspace::__init__: size={}'.format(mem.size))
+        self.mem = mem
+        self.ptr = mem.ptr
+        self.size = mem.size
+
+
 cdef class PooledMemory(Memory):
 
     """Memory allocation for a memory pool.
@@ -610,6 +618,7 @@ cdef class SingleDeviceMemoryPool:
         self._device_id = device.get_device_id()
         self._free_lock = rlock.create_fastrlock()
         self._in_use_lock = rlock.create_fastrlock()
+        self._workspace = None
 
     cpdef Py_ssize_t _round_size(self, Py_ssize_t size):
         """Round up the memory size to fit memory alignment of cudaMalloc."""
@@ -784,23 +793,30 @@ cdef class SingleDeviceMemoryPool:
             try:
                 mem = self._alloc(size).mem
             except runtime.CUDARuntimeError as e:
+                runtime.deviceSynchronize()
                 if e.status != runtime.errorMemoryAllocation:
                     raise
-                self.free_all_blocks()
+                if self._workspace is not None:
+                    self.free_workspace()
                 try:
                     mem = self._alloc(size).mem
                 except runtime.CUDARuntimeError as e:
-                    if e.status != runtime.errorMemoryAllocation:
-                        raise
-                    gc.collect()
+                    self.free_all_blocks()
                     try:
                         mem = self._alloc(size).mem
                     except runtime.CUDARuntimeError as e:
+                        runtime.deviceSynchronize()
                         if e.status != runtime.errorMemoryAllocation:
                             raise
-                        else:
-                            total = size + self.total_bytes()
-                            raise OutOfMemoryError(size, total)
+                        gc.collect()
+                        try:
+                            mem = self._alloc(size).mem
+                        except runtime.CUDARuntimeError as e:
+                            if e.status != runtime.errorMemoryAllocation:
+                                raise
+                            else:
+                                total = size + self.total_bytes()
+                                raise OutOfMemoryError(size, total)
             chunk = _Chunk.__new__(_Chunk)
             chunk._init(mem, 0, size, stream_ptr)
 
@@ -902,6 +918,21 @@ cdef class SingleDeviceMemoryPool:
 
     cpdef total_bytes(self):
         return self.used_bytes() + self.free_bytes()
+
+    cpdef workspace(self):
+        return self._workspace
+
+    cpdef malloc_workspace(self, Py_ssize_t size):
+        #print("malloc_workspace:: size={}".format(size))
+        self.free_workspace()
+        self._workspace = Workspace(self._alloc(size).mem)
+
+    cpdef free_workspace(self):
+        if self._workspace is not None:
+            mem = self._workspace.mem
+            runtime.free(mem.ptr)
+            mem.ptr = 0
+            self._workspace = None
 
 
 cdef class MemoryPool(object):
@@ -1012,3 +1043,6 @@ cdef class MemoryPool(object):
         """
         mp = <SingleDeviceMemoryPool>self._pools[device.get_device_id()]
         return mp.total_bytes()
+
+    cpdef pool(self, dev):
+        return self._pools[device.get_device_id()]

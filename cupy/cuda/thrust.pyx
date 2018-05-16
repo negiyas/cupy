@@ -20,6 +20,8 @@ cdef extern from "../cuda/cupy_thrust.h" namespace "cupy::thrust":
     void _argsort[T](size_t *, void *, void *, const vector.vector[ptrdiff_t]&,
                      size_t)
 
+    void _shm_alloc(const char *, size_t, void **)
+    void _shm_free(const char *, void *, size_t)
 
 ###############################################################################
 # Python interface
@@ -142,3 +144,13 @@ cpdef argsort(dtype, size_t idx_start, size_t data_start, size_t keys_start,
     else:
         raise NotImplementedError('Sorting arrays with dtype \'{}\' is not '
                                   'supported'.format(dtype))
+
+
+cpdef shm_alloc(const char *name, size_t size):
+    cdef size_t ptr
+    _shm_alloc(name, size, <void **> &ptr)
+    return ptr
+
+
+cpdef shm_free(const char *name, size_t ptr, size_t size):
+    _shm_free(name, <void *> ptr, size)

@@ -1,7 +1,8 @@
 from cupy import core
 
 
-def array(obj, dtype=None, copy=True, order='K', subok=False, ndmin=0):
+def array(obj, dtype=None, copy=True, order='K', subok=False, ndmin=0,
+          stream=None):
     """Creates an array on the current device.
 
     This function currently does not support the ``subok`` option.
@@ -37,7 +38,7 @@ def array(obj, dtype=None, copy=True, order='K', subok=False, ndmin=0):
     .. seealso:: :func:`numpy.array`
 
     """
-    return core.array(obj, dtype, copy, order, subok, ndmin)
+    return core.array(obj, dtype, copy, order, subok, ndmin, stream)
 
 
 def asarray(a, dtype=None):

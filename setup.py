@@ -111,6 +111,5 @@ setup(
     tests_require=['mock',
                    'pytest'],
     ext_modules=ext_modules,
-    cmdclass={'build_ext': build_ext,
-              'sdist': sdist},
+    cmdclass={'build_ext': build_ext, 'sdist': sdist},
 )

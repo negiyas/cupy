@@ -7,10 +7,14 @@ from fastrlock cimport rlock
 
 from cupy.cuda import runtime
 
+from cupy.cuda import thrust
+
 from cupy.cuda cimport runtime
 
+from cupy.cuda cimport memory
 
-class PinnedMemory(object):
+
+cdef class PinnedMemory(object):
 
     """Pinned memory allocation on host.
 
@@ -30,6 +34,36 @@ class PinnedMemory(object):
     def __del__(self):
         if self.ptr:
             runtime.freeHost(self.ptr)
+
+    def __int__(self):
+        """Returns the pointer value to the head of the allocation."""
+        return self.ptr
+
+
+cdef class SharedPinnedMemory(PinnedMemory):
+
+    """Shared and pinned memory allocation on host.
+
+    This class provides a RAII interface of the pinned memory allocation.
+
+    Args:
+        size (int): Size of the memory allocation in bytes.
+
+    """
+
+    def __init__(self, name, Py_ssize_t size, unsigned int flags=0):
+        self.size = size
+        self.ptr = 0
+        self.name = name.encode('utf-8')
+        if size > 0:
+            self.ptr = thrust.shm_alloc(self.name, size)
+        # print('SharedPinnedMemory::__init__: size={0}, ptr={1}, name={2}'.format(self.size, hex(self.ptr), self.name))
+
+    def __dealloc__(self):
+        if self.ptr:
+            thrust.shm_free(self.name, self.ptr, self.size)
+        self.size = 0
+        self.ptr = 0
 
     def __int__(self):
         """Returns the pointer value to the head of the allocation."""
@@ -86,6 +120,68 @@ cdef class PinnedMemoryPointer:
     def __isub__(self, Py_ssize_t offset):
         """Subtracts an offset from the pointer in place."""
         return self.__iadd__(-offset)
+
+    cpdef copy_from_device(self, memory.MemoryPointer src, Py_ssize_t size):
+        """Copies data from src (device memory) to self (pinned memory).
+
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            src (cupy.cuda.MemoryPointer): Source memory pointer.
+            size (int): Size of data in bytes.
+        """
+        if size > 0:
+            runtime.memcpy(self.ptr, src.ptr, size,
+                           runtime.memcpyDeviceToHost)
+
+    cpdef copy_from_device_async(self, memory.MemoryPointer src,
+                                 Py_ssize_t size, stream):
+        """Copies data from src (device memory) to self (pinned memory)
+        asynchronously.
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            src (cupy.cuda.MemoryPointer): Source memory pointer.
+            size (int): Size of data in bytes.
+            stream (cupy.cuda.Stream): CUDA stream.
+        """
+        if size > 0:
+            runtime.memcpyAsync(self.ptr, src.ptr, size,
+                                runtime.memcpyDeviceToHost, stream.ptr)
+
+    cpdef copy_to_device(self, memory.MemoryPointer dst, Py_ssize_t size):
+        """Copies data from self (pinned memory) to dst (device memory).
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            dst (cupy.cuda.MemoryPointer): Destination memory pointer.
+            size (int): Size of data in bytes.
+        """
+        if size > 0:
+            runtime.memcpy(dst.ptr, self.ptr, size,
+                           runtime.memcpyHostToDevice)
+
+    cpdef copy_to_device_async(self, memory.MemoryPointer dst,
+                               Py_ssize_t size, stream):
+        """Copies data from self (pinned memory) to dst (device memory)
+        asynchronously.
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            dst (cupy.cuda.MemoryPointer): Destination memory pointer.
+            size (int): Size of data in bytes.
+        """
+        if size > 0:
+            runtime.memcpyAsync(dst.ptr, self.ptr, size,
+                                runtime.memcpyHostToDevice, stream.ptr)
 
     cpdef Py_ssize_t size(self):
         return self.mem.size - (self.ptr - self.mem.ptr)

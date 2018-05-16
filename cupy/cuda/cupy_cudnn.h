@@ -29,6 +29,7 @@ typedef enum {} cudnnPoolingMode_t;
 typedef enum {} cudnnSoftmaxAlgorithm_t;
 typedef enum {} cudnnSoftmaxMode_t;
 typedef enum {} cudnnTensorFormat_t;
+typedef enum {} cudnnLRNMode_t;
 
 
 typedef void* cudnnConvolutionDescriptor_t;
@@ -36,6 +37,7 @@ typedef void* cudnnFilterDescriptor_t;
 typedef void* cudnnHandle_t;
 typedef void* cudnnPoolingDescriptor_t;
 typedef void* cudnnTensorDescriptor_t;
+typedef void* cudnnLRNDescriptor_t;
 
 
 // Error handling
@@ -160,6 +162,26 @@ cudnnStatus_t cudnnSoftmaxBackward(...) {
     return CUDNN_STATUS_SUCCESS;
 }
 
+// Local Response Norm
+cudnnStatus_t cudnnCreateLRNDescriptor(...) {
+    return CUDNN_STATUS_SUCCESS;
+}
+
+cudnnStatus_t cudnnSetLRNDescriptor(...) {
+    return CUDNN_STATUS_SUCCESS;
+}
+
+cudnnStatus_t cudnnDestroyLRNDescriptor(...) {
+    return CUDNN_STATUS_SUCCESS;
+}
+
+cudnnStatus_t cudnnLRNCrossChannelForward(...) {
+    return CUDNN_STATUS_SUCCESS;
+}
+
+cudnnStatus_t cudnnLRNCrossChannelBackward(...) {
+    return CUDNN_STATUS_SUCCESS;
+}
 
 typedef enum {} cudnnConvolutionBwdDataAlgo_t;
 typedef enum {} cudnnConvolutionBwdDataPreference_t;

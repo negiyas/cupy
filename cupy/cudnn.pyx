@@ -14,6 +14,13 @@ from cupy.cuda cimport memory
 import cupy
 from cupy.core import internal
 from cupy.cuda import cudnn as py_cudnn
+from cupy.cuda import cudnn_util
+
+_log_enabled = False
+
+def log(msg):
+    if _log_enabled:
+        print(msg)
 
 
 cdef int _cudnn_version = cudnn.getVersion()
@@ -278,6 +285,15 @@ def create_pooling_descriptor(ksize, stride, pad, mode):
     return desc
 
 
+def create_lrn_descriptor(lrnN, lrnAlpha, lrnBeta, lrnK):
+    desc = Descriptor(cudnn.createLRNDescriptor(),
+                      py_cudnn.destroyLRNDescriptor)
+
+    cudnn.setLRNDescriptor(desc.value, lrnN, lrnAlpha, lrnBeta, lrnK)
+
+    return desc
+
+
 cpdef core.ndarray _as4darray(core.ndarray arr):
     if arr.ndim == 0:
         return arr.reshape(1, 1, 1, 1)
@@ -504,51 +520,60 @@ cdef dict _algorithm_bwd_data = {}
 cpdef tuple _get_algorithm_fwd(
         core.ndarray x, core.ndarray W, core.ndarray y, tuple conv_param,
         size_t handle, size_t x_desc, size_t filter_desc, size_t conv_desc,
-        size_t y_desc, size_t max_workspace_size):
+        size_t y_desc, size_t max_workspace_size, size_t workspace_ptr=0):
     key = (x.data.device.id, x.shape, W.shape, y.shape, conv_param,
            max_workspace_size)
     if key in _algorithm_fwd:
         return _algorithm_fwd[key]
-    workspace = memory.alloc(max_workspace_size)
+    if workspace_ptr == 0:
+        workspace = memory.alloc(max_workspace_size)
+        workspace_ptr = workspace.ptr
     ret = cudnn.findConvolutionForwardAlgorithmEx(
         handle, x_desc, x.data.ptr, filter_desc, W.data.ptr, conv_desc, y_desc,
-        y.data.ptr, 1, workspace.ptr, max_workspace_size)
+        y.data.ptr, 1, workspace_ptr, max_workspace_size)
     algo = (ret[0]['algo'], ret[0]['memory'])
     _algorithm_fwd[key] = algo
+    log('_get_algorith_fwd: size {}, algo {}'.format(max_workspace_size, algo))
     return algo
 
 
 cpdef tuple _get_algorithm_bwd_filter(
         core.ndarray x, core.ndarray dy, core.ndarray dW, tuple conv_param,
         size_t handle, size_t x_desc, size_t dy_desc, size_t conv_desc,
-        size_t filter_desc, size_t max_workspace_size):
+        size_t filter_desc, size_t max_workspace_size, size_t workspace_ptr=0):
     key = (x.data.device.id, x.shape, dW.shape, dy.shape, conv_param,
            max_workspace_size)
     if key in _algorithm_bwd_filter:
         return _algorithm_bwd_filter[key]
-    workspace = memory.alloc(max_workspace_size)
+    if workspace_ptr == 0:
+        workspace = memory.alloc(max_workspace_size)
+        workspace_ptr = workspace.ptr
     ret = cudnn.findConvolutionBackwardFilterAlgorithmEx(
         handle, x_desc, x.data.ptr, dy_desc, dy.data.ptr, conv_desc,
-        filter_desc, dW.data.ptr, 1, workspace.ptr, max_workspace_size)
+        filter_desc, dW.data.ptr, 1, workspace_ptr, max_workspace_size)
     algo = (ret[0]['algo'], ret[0]['memory'])
     _algorithm_bwd_filter[key] = algo
+    log('_get_algorith_bwd_filter: size {}, algo {}'.format(max_workspace_size, algo))
     return algo
 
 
 cpdef tuple _get_algorithm_bwd_data(
         core.ndarray W, core.ndarray x, core.ndarray y, tuple conv_param,
         size_t handle, size_t filter_desc, size_t x_desc, size_t conv_desc,
-        size_t y_desc, size_t max_workspace_size):
+        size_t y_desc, size_t max_workspace_size, size_t workspace_ptr=0):
     key = (x.data.device.id, W.shape, x.shape, y.shape, conv_param,
            max_workspace_size)
     if key in _algorithm_bwd_data:
         return _algorithm_bwd_data[key]
-    workspace = memory.alloc(max_workspace_size)
+    if workspace_ptr == 0:
+        workspace = memory.alloc(max_workspace_size)
+        workspace_ptr = workspace.ptr
     ret = cudnn.findConvolutionBackwardDataAlgorithmEx(
         handle, filter_desc, W.data.ptr, x_desc, x.data.ptr,
-        conv_desc, y_desc, y.data.ptr, 1, workspace.ptr, max_workspace_size)
+        conv_desc, y_desc, y.data.ptr, 1, workspace_ptr, max_workspace_size)
     algo = (ret[0]['algo'], ret[0]['memory'])
     _algorithm_bwd_data[key] = algo
+    log('_get_algorith_bwd_data: size {}, algo {}'.format(max_workspace_size, algo))
     return algo
 
 
@@ -569,7 +594,7 @@ cpdef bint _should_use_tensor_core(
 def convolution_forward(
         core.ndarray x, core.ndarray W, core.ndarray b, core.ndarray y,
         tuple pad, tuple stride, tuple dilation, int groups, *,
-        bint auto_tune, str tensor_core):
+        bint auto_tune, bint auto_workspace, str tensor_core, cudnn_algo):
     cdef int dev_id = x.data.device.id
     assert dev_id == W.data.device.id
     assert dev_id == y.data.device.id
@@ -624,23 +649,38 @@ def convolution_forward(
             workspace_size = cudnn.getConvolutionForwardWorkspaceSize(
                 handle, x_desc, filter_desc, conv_desc, y_desc, algo)
             max_workspace_size = max(max_workspace_size, workspace_size)
+            # TODO(okuta): allocate best size memory
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
         elif auto_tune and _cudnn_version >= 5000:
             algo, workspace_size = _get_algorithm_fwd(
                 x, W, y, conv_param, handle, x_desc, filter_desc,
                 conv_desc, y_desc, max_workspace_size)
+            # TODO(okuta): allocate best size memory
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
+        elif auto_workspace and _cudnn_version >= 5000:
+            #print('cupy.cudnn.convolution_forward get_workspace')
+            workspace = cudnn_algo.workspace()
+            algo = cudnn_algo.forward(
+                x, W, y, conv_param, handle, x_desc, filter_desc,
+                conv_desc, y_desc, workspace)
+            workspace_size = workspace.size
+            workspace_ptr = workspace.ptr
         else:
             algo = cudnn.getConvolutionForwardAlgorithm(
                 handle, x_desc, filter_desc, conv_desc, y_desc,
                 cudnn.CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT,
                 max_workspace_size)
             workspace_size = max_workspace_size
+            # TODO(okuta): allocate best size memory
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
 
-        # TODO(okuta): allocate best size memory
-        workspace = memory.alloc(max_workspace_size)
 
         cudnn.convolutionForward(
             handle, one, x_desc, x.data.ptr, filter_desc, W.data.ptr,
-            conv_desc, algo, workspace.ptr, workspace_size, zero, y_desc,
+            conv_desc, algo, workspace_ptr, workspace_size, zero, y_desc,
             y.data.ptr)
 
         if b is not None:
@@ -661,7 +701,8 @@ def convolution_forward(
 def convolution_backward_filter(
         core.ndarray x, core.ndarray gy, core.ndarray gW,
         tuple pad, tuple stride, tuple dilation, int groups, *,
-        bint deterministic, bint auto_tune, str tensor_core):
+        bint deterministic, bint auto_tune, bint auto_workspace,
+        str tensor_core, cudnn_algo):
     cdef int dev_id = x.data.device.id
     assert dev_id == gy.data.device.id
     assert dev_id == gW.data.device.id
@@ -707,23 +748,34 @@ def convolution_backward_filter(
             workspace_size = cudnn.getConvolutionBackwardFilterWorkspaceSize(
                 handle, x_desc, gy_desc, conv_desc, filter_desc, algo)
             max_workspace_size = max(max_workspace_size, workspace_size)
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
             # TODO(okuta): check workspace size
         elif auto_tune and _cudnn_version >= 5000:
             algo, workspace_size = _get_algorithm_bwd_filter(
                 x, gy, gW, conv_param, handle, x_desc, gy_desc, conv_desc,
                 filter_desc, max_workspace_size)
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
+        elif auto_workspace and _cudnn_version >= 5000:
+            workspace = cudnn_algo.workspace()
+            algo = cudnn_algo.backward_filter(
+                x, gy, gW, conv_param, handle, x_desc, gy_desc, conv_desc,
+                filter_desc, workspace)
+            workspace_size = workspace.size
+            workspace_ptr = workspace.ptr
         else:
             algo = cudnn.getConvolutionBackwardFilterAlgorithm(
                 handle, x_desc, gy_desc, conv_desc, filter_desc,
                 cudnn.CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT,
                 max_workspace_size)
             workspace_size = max_workspace_size
-        # TODO(okuta): allocate best size memory
-        workspace = memory.alloc(max_workspace_size)
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
 
         cudnn.convolutionBackwardFilter_v3(
             handle, one, x_desc, x.data.ptr, gy_desc,
-            gy.data.ptr, conv_desc, algo, workspace.ptr,
+            gy.data.ptr, conv_desc, algo, workspace_ptr,
             workspace_size, zero, filter_desc, gW.data.ptr)
     finally:
         cudnn.destroyTensorDescriptor(x_desc)
@@ -735,7 +787,8 @@ def convolution_backward_filter(
 def convolution_backward_data(
         core.ndarray W, core.ndarray x, core.ndarray b, core.ndarray y,
         tuple pad, tuple stride, tuple dilation, int groups, *,
-        bint deterministic, bint auto_tune, str tensor_core):
+        bint deterministic, bint auto_tune, bint auto_workspace,
+        str tensor_core, cudnn_algo):
     cdef int dev_id = W.data.device.id
     assert dev_id == x.data.device.id
     assert dev_id == y.data.device.id
@@ -790,24 +843,34 @@ def convolution_backward_data(
             workspace_size = cudnn.getConvolutionBackwardDataWorkspaceSize(
                 handle, filter_desc, x_desc, conv_desc, y_desc, algo)
             max_workspace_size = max(max_workspace_size, workspace_size)
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
             # TODO(okuta): check workspace size
         elif auto_tune and _cudnn_version >= 5000:
             algo, workspace_size = _get_algorithm_bwd_data(
                 W, x, y, conv_param, handle, filter_desc, x_desc,
                 conv_desc, y_desc, max_workspace_size)
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
+        elif auto_workspace and _cudnn_version >= 5000:
+            workspace = cudnn_algo.workspace()
+            algo = cudnn_algo.backward_data(
+                W, x, y, conv_param, handle, filter_desc, x_desc,
+                conv_desc, y_desc, workspace)
+            workspace_size = workspace.size
+            workspace_ptr = workspace.ptr
         else:
             algo = cudnn.getConvolutionBackwardDataAlgorithm(
                 handle, filter_desc, x_desc, conv_desc, y_desc,
                 cudnn.CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT,
                 max_workspace_size)
             workspace_size = max_workspace_size
-
-        # TODO(okuta): allocate best size memory
-        workspace = memory.alloc(max_workspace_size)
+            workspace = memory.alloc(max_workspace_size)
+            workspace_ptr = workspace.ptr
 
         cudnn.convolutionBackwardData_v3(
             handle, one, filter_desc, W.data.ptr, x_desc, x.data.ptr,
-            conv_desc, algo, workspace.ptr, workspace_size, zero, y_desc,
+            conv_desc, algo, workspace_ptr, workspace_size, zero, y_desc,
             y.data.ptr)
 
         if b is not None:
