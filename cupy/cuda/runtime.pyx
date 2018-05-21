@@ -179,6 +179,7 @@ cpdef int getDeviceCount() except *:
 
 
 cpdef setDevice(int device):
+    print("runtime.setDevice deviceid={}".format(device))
     status = cudaSetDevice(device)
     check_status(status)
 
