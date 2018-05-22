@@ -119,12 +119,10 @@ cpdef _set_peer_access(int device, int peer):
         return
 
     cdef int current = runtime.getDevice()
-    print("memory.__set_peer_access")
     runtime.setDevice(device)
     try:
         runtime.deviceEnablePeerAccess(peer)
     finally:
-        print("memory.__set_peer_access2")
         runtime.setDevice(current)
 
 

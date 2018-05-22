@@ -110,7 +110,6 @@ cdef class Device:
         return self
 
     def __exit__(self, *args):
-        print("device.__exit__")
         runtime.setDevice(self._device_stack.pop())
 
     def __repr__(self):
@@ -122,7 +121,6 @@ cdef class Device:
         If you want to switch a device temporarily, use the *with* statement.
 
         """
-        print("device.use")
         runtime.setDevice(self.id)
 
     cpdef synchronize(self):
