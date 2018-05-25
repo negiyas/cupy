@@ -434,7 +434,7 @@ def parse_args():
     parser = argparse.ArgumentParser(add_help=False)
 
     parser.add_argument(
-        '--cupy-package-name', type=str, default='cupy',
+        '--cupy-package-name', type=str, default='cupy-ibmopt',
         help='alternate package name')
     parser.add_argument(
         '--cupy-long-description', type=str, default=None,

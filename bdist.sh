@@ -6,5 +6,6 @@ export LD_LIBRARY_PATH="$NCCL_ROOT/lib:$CUDNN_ROOT/lib:$LD_LIBRARY_PATH"
 export LIBRARY_PATH="$NCCL_ROOT/lib:$CUDNN_ROOT/lib:$LIBRARY_PATH"
 
 
-python setup.py install 2>&1 | tee build.log
-#pip install -e . 2>&1 | tee -a build.log
+/bin/rm -f dist/*.whl
+python setup.py bdist_wheel 2>&1 | tee bdist.log
+ls -l dist
