@@ -1,6 +1,13 @@
 <div align="center"><img src="docs/image/cupy_logo_1000px.png" width="400"/></div>
 
-# CuPy : NumPy-like API accelerated with CUDA
+# CuPy : NumPy-like API accelerated with CUDA (Optimized for POWER machines by IBM)
+
+The following optimizations for POWER machines are supported. You can use them from the chainer-ibmopt package.
+
+- Auto Workspace <br>
+Allocate larger workspace memory by managing and estimating the GPU memory, and choose faster cuDNN algorithms by utilizing the GPU memory.
+- Out-of-Core <br>
+Introduce swap-in/swap-out mechanism to support network models those cannot fit into phisical GPU memory.
 
 [![pypi](https://img.shields.io/pypi/v/cupy.svg)](https://pypi.python.org/pypi/cupy)
 [![GitHub license](https://img.shields.io/github/license/cupy/cupy.svg)](https://github.com/cupy/cupy)

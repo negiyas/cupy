@@ -73,7 +73,7 @@ __version__ = imp.load_source(
 setup(
     name=package_name,
     version=__version__,
-    description='CuPy: NumPy-like API accelerated with CUDA',
+    description='CuPy: NumPy-like API accelerated with CUDA (opbimized for POWER machines by IBM)',
     long_description=long_description,
     author='Seiya Tokui',
     author_email='tokui@preferred.jp',
