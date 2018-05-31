@@ -1,13 +1,6 @@
 <div align="center"><img src="docs/image/cupy_logo_1000px.png" width="400"/></div>
 
-# CuPy : NumPy-like API accelerated with CUDA (Optimized for POWER machines by IBM)
-
-The following optimizations for POWER machines are supported. You can use them from the chainer-ibmopt package.
-
-- Auto Workspace <br>
-Allocate larger workspace memory by managing and estimating the GPU memory, and choose faster cuDNN algorithms by utilizing the GPU memory.
-- Out-of-Core <br>
-Introduce swap-in/swap-out mechanism to support network models those cannot fit into phisical GPU memory.
+# CuPy : NumPy-like API accelerated with CUDA<br> (Optimized for POWER machines by IBM)
 
 [![pypi](https://img.shields.io/pypi/v/cupy.svg)](https://pypi.python.org/pypi/cupy)
 [![GitHub license](https://img.shields.io/github/license/cupy/cupy.svg)](https://github.com/cupy/cupy)
@@ -26,6 +19,14 @@ Introduce swap-in/swap-out mechanism to support network models those cannot fit 
 CuPy consists of the core multi-dimensional array class, `cupy.ndarray`, and many functions on it.
 It supports a subset of `numpy.ndarray` interface.
 
+## Optimizations for POWER machine
+The following optimizations for POWER machine are supported. You can use them from the chainer-ibmopt package.
+
+- Auto Workspace <br>
+Allocate larger workspace memory by managing and estimating the GPU memory, and choose faster cuDNN algorithms by utilizing the GPU memory.
+- Out-of-Core <br>
+Introduce swap-in/swap-out mechanism to support network models those cannot fit into phisical GPU memory.
+
 ## Installation
 
 For detailed instructions on installing CuPy, see [the installation guide](https://docs-cupy.chainer.org/en/stable/install.html).
@@ -33,7 +34,7 @@ For detailed instructions on installing CuPy, see [the installation guide](https
 You can install CuPy using `pip`:
 
 ```sh
-$ pip install cupy
+$ pip install cupy-ibmopt
 ```
 
 Note that if you want to enable CUDA, cuDNN, and/or NCCL, they need to be set up before installation of CuPy.
