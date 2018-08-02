@@ -129,6 +129,67 @@ cdef class PinnedMemoryPointer:
         p[0] = <void*>self.ptr
         return self.size()
 
+    cpdef copy_from_device(self, memory.MemoryPointer src, Py_ssize_t size):
+        """Copies data from src (device memory) to self (pinned memory).
+
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            src (cupy.cuda.MemoryPointer): Source memory pointer.
+            size (int): Size of data in bytes.
+        """
+        if size > 0:
+            runtime.memcpy(self.ptr, src.ptr, size,
+                           runtime.memcpyDeviceToHost)
+
+    cpdef copy_from_device_async(self, memory.MemoryPointer src,
+                                 Py_ssize_t size, stream):
+        """Copies data from src (device memory) to self (pinned memory)
+        asynchronously.
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            src (cupy.cuda.MemoryPointer): Source memory pointer.
+            size (int): Size of data in bytes.
+            stream (cupy.cuda.Stream): CUDA stream.
+        """
+        if size > 0:
+            runtime.memcpyAsync(self.ptr, src.ptr, size,
+                                runtime.memcpyDeviceToHost, stream.ptr)
+
+    cpdef copy_to_device(self, memory.MemoryPointer dst, Py_ssize_t size):
+        """Copies data from self (pinned memory) to dst (device memory).
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            dst (cupy.cuda.MemoryPointer): Destination memory pointer.
+            size (int): Size of data in bytes.
+        """
+        if size > 0:
+            runtime.memcpy(dst.ptr, self.ptr, size,
+                           runtime.memcpyHostToDevice)
+
+    cpdef copy_to_device_async(self, memory.MemoryPointer dst,
+                               Py_ssize_t size, stream):
+        """Copies data from self (pinned memory) to dst (device memory)
+        asynchronously.
+        Copied from anaruse's repository
+        Source: https://github.com/anaruse/
+                cupy/blob/OOC_cupy_v102/cupy/cuda/pinned_memory.pyx
+
+        Args:
+            dst (cupy.cuda.MemoryPointer): Destination memory pointer.
+            size (int): Size of data in bytes.
+        """
+        if size > 0:
+            runtime.memcpyAsync(dst.ptr, self.ptr, size,
+                                runtime.memcpyHostToDevice, stream.ptr)
 
 cdef class _EventWatcher:
     cdef:
