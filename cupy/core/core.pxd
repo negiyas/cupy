@@ -1,5 +1,6 @@
 from libcpp cimport vector
 from cupy.cuda cimport memory
+from cupy.cuda cimport pinned_memory
 
 from cupy.cuda.function cimport CPointer
 from cupy.cuda.function cimport Module
@@ -17,6 +18,8 @@ cdef class ndarray:
         # TODO(niboshi): Return arbitrary owner object as `base` if the
         # underlying memory is UnownedMemory.
         readonly ndarray base
+        readonly pinned_memory.PinnedMemoryPointer data_swapout
+        readonly bint is_swapout
 
     cpdef tolist(self)
     cpdef tofile(self, fid, sep=*, format=*)
@@ -81,6 +84,9 @@ cdef class ndarray:
         bint is_c_contiguous)
     cdef CPointer get_pointer(self)
     cpdef object toDlpack(self)
+    cpdef swapout(self, stream=*)
+    cpdef swapin(self, stream=*)
+    cpdef deldata(self)
 
 
 cdef class broadcast:
