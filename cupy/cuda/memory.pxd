@@ -36,6 +36,7 @@ cdef class MemoryPointer:
     cpdef copy_to_host_async(self, mem, size_t size, stream=?)
     cpdef memset(self, int value, size_t size)
     cpdef memset_async(self, int value, size_t size, stream=?)
+    cpdef free(self)
 
 
 cpdef MemoryPointer alloc(size)
@@ -43,6 +44,7 @@ cpdef MemoryPointer alloc(size)
 
 cpdef set_allocator(allocator=*)
 
+cpdef set_nopool_memory_hook(int hook)
 
 cdef class MemoryPool:
 

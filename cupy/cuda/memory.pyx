@@ -468,12 +468,73 @@ cdef class MemoryPointer:
         if size > 0:
             runtime.memsetAsync(self.ptr, value, size, stream_ptr)
 
+    cpdef free(self):
+        """Call memory hook functions
+           It does not call free_postprocess, but calls free_preprocess.
+        """
+        if _current_nopool_memory_hook == 0:
+            return
+        if memory_hook._has_memory_hooks():
+            hooks = memory_hook.get_memory_hooks()
+            if hooks:
+                device_id = self.device_id
+                size = self.mem.size
+                ptr = self.mem.ptr
+                pmem_id = id(self)
+
+                # avoid six for performance
+                hooks_values = hooks.values()
+                for hook in hooks_values:
+                    hook.free_preprocess(device_id=device_id,
+                                         mem_size=size,
+                                         mem_ptr=ptr,
+                                         pmem_id=pmem_id)
+                #try:
+                #    self.mem.size = 0
+                #    self.mem.ptr = 0
+                #finally:
+                #    for hook in hooks_values:
+                #        hook.free_postprocess(device_id=device_id,
+                #                              mem_size=size,
+                #                              mem_ptr=ptr,
+                #                              pmem_id=pmem_id)
+                return
+
+    def __dealloc__(self):
+        if _exit_mode:
+            return  # To avoid error at exit
+        self.free()
+
 
 cpdef MemoryPointer _malloc(Py_ssize_t size):
     mem = Memory(size)
     return MemoryPointer(mem, 0)
 
 
+cpdef MemoryPointer _malloc_with_hook(Py_ssize_t size):
+    global _current_nopool_memory_hook
+    _current_nopool_memory_hook = 1
+    if memory_hook._has_memory_hooks():
+        hooks = memory_hook.get_memory_hooks()
+        if hooks:
+            memptr = None
+            device_id = device.get_device_id()
+            # avoid six for performance
+            hooks_values = hooks.values()
+            for hook in hooks_values:
+                hook.malloc_preprocess(device_id=device_id, mem_size=size)
+            try:
+                memptr = MemoryPointer(Memory(size), 0)
+            finally:
+                for hook in hooks_values:
+                    mem_ptr = memptr.ptr if memptr is not None else 0
+                    pmem_id = id(memptr.mem)
+                    hook.malloc_postprocess(device_id=device_id, mem_size=size,
+                                            mem_ptr=mem_ptr, pmem_id=pmem_id)
+            return memptr
+    return MemoryPointer(Memory(size), 0)
+
+    
 cpdef MemoryPointer malloc_managed(Py_ssize_t size):
     """Allocate managed memory (unified memory).
 
@@ -533,6 +594,12 @@ cpdef set_allocator(allocator=None):
         allocator = _malloc
     _current_allocator = allocator
 
+
+cdef int _current_nopool_memory_hook = 0
+
+cpdef set_nopool_memory_hook(int hook):
+    global _current_nopool_memory_hook
+    _current_nopool_memory_hook = hook
 
 @cython.final
 @cython.no_gc
