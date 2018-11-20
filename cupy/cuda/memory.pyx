@@ -470,7 +470,7 @@ cdef class MemoryPointer:
 
     cpdef free(self):
         """Call memory hook functions
-           It does not call free_postprocess, but calls free_preprocess.
+           It does not call free_preprocess, but calls free_postprocess.
         """
         if _current_nopool_memory_hook == 0:
             return
@@ -485,19 +485,10 @@ cdef class MemoryPointer:
                 # avoid six for performance
                 hooks_values = hooks.values()
                 for hook in hooks_values:
-                    hook.free_preprocess(device_id=device_id,
+                    hook.free_postprocess(device_id=device_id,
                                          mem_size=size,
                                          mem_ptr=ptr,
                                          pmem_id=pmem_id)
-                #try:
-                #    self.mem.size = 0
-                #    self.mem.ptr = 0
-                #finally:
-                #    for hook in hooks_values:
-                #        hook.free_postprocess(device_id=device_id,
-                #                              mem_size=size,
-                #                              mem_ptr=ptr,
-                #                              pmem_id=pmem_id)
                 return
 
     def __dealloc__(self):
@@ -529,8 +520,9 @@ cpdef MemoryPointer _malloc_with_hook(Py_ssize_t size):
                 for hook in hooks_values:
                     mem_ptr = memptr.ptr if memptr is not None else 0
                     pmem_id = id(memptr.mem)
-                    hook.malloc_postprocess(device_id=device_id, mem_size=size,
-                                            mem_ptr=mem_ptr, pmem_id=pmem_id)
+                    hook.malloc_postprocess(device_id=device_id, size=size,
+                                            mem_size=size, mem_ptr=mem_ptr,
+                                                pmem_id=pmem_id)
             return memptr
     return MemoryPointer(Memory(size), 0)
 

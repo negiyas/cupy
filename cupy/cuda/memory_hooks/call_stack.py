@@ -2,6 +2,7 @@ import sys
 
 from cupy.cuda import memory_hook
 import inspect
+from cupy.cuda import runtime
 
 
 class CallStackHook(memory_hook.MemoryHook):
@@ -91,13 +92,17 @@ class CallStackHook(memory_hook.MemoryHook):
         return ret
 
     def malloc_postprocess(self, **kwargs):
-        msg = 'CALLSTACK MALLOC %d %d %s %s %s'
+        msg = 'CALLSTACK MALLOC %d %d %s %s %d %d %s'
+        meminfo = runtime.memGetInfo()
         msg %= (kwargs['device_id'], kwargs['mem_size'],
-                hex(kwargs['mem_ptr']), hex(kwargs['pmem_id']), self._stack())
+                hex(kwargs['mem_ptr']), hex(kwargs['pmem_id']),
+                meminfo[0], meminfo[1], self._stack())
         self._print(msg)
 
-    def free_preprocess(self, **kwargs):
-        msg = 'CALLSTACK FREE %d %d %s %s %s'
+    def free_postprocess(self, **kwargs):
+        msg = 'CALLSTACK FREE %d %d %s %s %d %d %s'
+        meminfo = runtime.memGetInfo()
         msg %= (kwargs['device_id'], kwargs['mem_size'],
-                hex(kwargs['mem_ptr']), hex(kwargs['pmem_id']), self._stack())
+                hex(kwargs['mem_ptr']), hex(kwargs['pmem_id']),
+                meminfo[0], meminfo[1], self._stack())
         self._print(msg)
